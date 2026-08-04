@@ -62,17 +62,6 @@ pulumi stack ls --json
 under `pulumi login --local` — the state files themselves. Set
 `PULUMI_CONFIG_PASSPHRASE` for a self-managed backend's secret provider.
 
-## Install with ocx
-
-```sh
-ocx install ocx.sh/pulumi/pulumi
-```
-
-```sh
-# or pin a specific version
-ocx install ocx.sh/pulumi/pulumi:3.255.0
-```
-
 ## Links
 
 - [Pulumi on GitHub](https://github.com/pulumi/pulumi)
