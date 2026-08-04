@@ -107,11 +107,11 @@ assets:
     - "^pulumi-v\\d+\\.\\d+\\.\\d+-darwin-x64\\.tar\\.gz$"
   "darwin/arm64":
     - "^pulumi-v\\d+\\.\\d+\\.\\d+-darwin-arm64\\.tar\\.gz$"
-  # ── Pass 3 (windows) ──────────────────────────────────────────────────────
-  # "windows/amd64":
-  #   - "^pulumi-v\\d+\\.\\d+\\.\\d+-windows-x64\\.zip$"
-  # "windows/arm64":
-  #   - "^pulumi-v\\d+\\.\\d+\\.\\d+-windows-arm64\\.zip$"
+  # ── Pass 3 (windows) — LIVE ───────────────────────────────────────────────
+  "windows/amd64":
+    - "^pulumi-v\\d+\\.\\d+\\.\\d+-windows-x64\\.zip$"
+  "windows/arm64":
+    - "^pulumi-v\\d+\\.\\d+\\.\\d+-windows-arm64\\.zip$"
 
 # ─── Archive layout — MEASURED, and it differs between unix and windows ─────
 #
@@ -130,8 +130,10 @@ assets:
 #   pulumi/bin/pulumi.exe   pulumi/bin/pulumi-language-go.exe   ...
 #
 # The Windows zips DO nest a `bin/`, so their content root is `pulumi/bin/` and
-# they get their own metadata file (PATH = ${installPath}/pulumi/bin). Staged
-# with pass 3.
+# they get their own metadata file (PATH = ${installPath}/pulumi/bin). All SIX
+# windows assets in the range (3.253.0/3.254.0/3.255.0 × x64/arm64) were listed
+# from their remote zip central directories: the `pulumi/bin/` root and the
+# 13-vs-12 split below hold on every one, so neither override is newest-only.
 #
 # ⚠ THERE IS NO PER-PLATFORM `strip_components` — `asset_type.platforms.<key>.
 # strip_components` is ACCEPTED BY `package validate` AND SILENTLY IGNORED BY
@@ -180,10 +182,12 @@ bin_scan: verify
 
 metadata:
   default: metadata.json
-  # ── Pass 3 (windows) ──────────────────────────────────────────────────────
-  # platforms:
-  #   "windows/amd64": metadata-windows.json
-  #   "windows/arm64": metadata-windows-arm64.json
+  # ── Pass 3 (windows) — LIVE ───────────────────────────────────────────────
+  # Two overrides, not one: windows needs a different PATH (the nested `bin/`)
+  # AND windows/arm64 declares 12 binaries where everything else declares 13.
+  platforms:
+    "windows/amd64": metadata-windows.json
+    "windows/arm64": metadata-windows-arm64.json
 
 catalog:
   logo: logo.svg
@@ -237,13 +241,15 @@ platforms:
   "darwin/arm64":
     runner: macos-14
     shell: bash
-  # ── Pass 3 (windows) ──────────────────────────────────────────────────────
-  # "windows/amd64":
-  #   runner: windows-latest
-  #   shell: pwsh
-  # "windows/arm64":
-  #   runner: windows-11-arm
-  #   shell: pwsh
+  # ── Pass 3 (windows) — LIVE ───────────────────────────────────────────────
+  "windows/amd64":
+    runner: windows-latest
+    shell: pwsh
+  "windows/arm64":
+    # The arm64 windows pool is its own label; windows-latest is x64 only and
+    # would test the wrong slice under emulation.
+    runner: windows-11-arm
+    shell: pwsh
   #
   # No `containers:` on darwin or windows — those runners have no Linux
   # container engine and the key is rejected at spec load.
