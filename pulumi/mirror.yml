@@ -99,14 +99,14 @@ assets:
     - "^pulumi-v\\d+\\.\\d+\\.\\d+-linux-x64\\.tar\\.gz$"
   "linux/arm64+libc.glibc":
     - "^pulumi-v\\d+\\.\\d+\\.\\d+-linux-arm64\\.tar\\.gz$"
-  # ── Pass 2 (darwin) ───────────────────────────────────────────────────────
+  # ── Pass 2 (darwin) — LIVE ────────────────────────────────────────────────
   # Uncommented together with the matching `platforms:` entry, never alone: a
   # declared platform with no resolvable asset does not red, it boots a real
   # macos-14 runner and reports SUCCESS having tested nothing.
-  # "darwin/amd64":
-  #   - "^pulumi-v\\d+\\.\\d+\\.\\d+-darwin-x64\\.tar\\.gz$"
-  # "darwin/arm64":
-  #   - "^pulumi-v\\d+\\.\\d+\\.\\d+-darwin-arm64\\.tar\\.gz$"
+  "darwin/amd64":
+    - "^pulumi-v\\d+\\.\\d+\\.\\d+-darwin-x64\\.tar\\.gz$"
+  "darwin/arm64":
+    - "^pulumi-v\\d+\\.\\d+\\.\\d+-darwin-arm64\\.tar\\.gz$"
   # ── Pass 3 (windows) ──────────────────────────────────────────────────────
   # "windows/amd64":
   #   - "^pulumi-v\\d+\\.\\d+\\.\\d+-windows-x64\\.zip$"
@@ -225,15 +225,18 @@ platforms:
     containers:
       - { image: "ubuntu:24.04", shell: bash }
       - { image: "fedora:40",    shell: bash }
-  # ── Pass 2 (darwin) ───────────────────────────────────────────────────────
-  # "darwin/amd64":
-  #   # Intel slice tested on the arm64 macos-14 runner via Rosetta 2 —
-  #   # GitHub's native macos-13 Intel pool is exhausted and deadlocks push.
-  #   runner: macos-14
-  #   prefix: ["arch", "-x86_64"]
-  # "darwin/arm64":
-  #   runner: macos-14
-  #   shell: bash
+  # ── Pass 2 (darwin) — LIVE ────────────────────────────────────────────────
+  # Same archive shape as Linux (`pulumi/` wrapper, 13 files, no `bin/`), so
+  # metadata.json serves both. macOS has one libc family — no `+libc.*` suffix,
+  # and `containers:` is rejected at spec load on a non-Linux platform.
+  "darwin/amd64":
+    # Intel slice tested on the arm64 macos-14 runner via Rosetta 2 —
+    # GitHub's native macos-13 Intel pool is exhausted and deadlocks push.
+    runner: macos-14
+    prefix: ["arch", "-x86_64"]
+  "darwin/arm64":
+    runner: macos-14
+    shell: bash
   # ── Pass 3 (windows) ──────────────────────────────────────────────────────
   # "windows/amd64":
   #   runner: windows-latest
