@@ -1,0 +1,258 @@
+# Single-package repository: there is no ../mirror-base.yml and no `extends:`.
+# Every key below is package-owned, and the platform matrix is downstream of a
+# per-package libc measurement, so hoisting it into a base would only recreate
+# the shallow-merge trap for no gain (mirror-astral-sh ships the same shape).
+
+name: pulumi
+
+# Logical index package `pulumi/pulumi` at the physical path
+# `ghcr.io/ocx-contrib/pulumi/pulumi` — slash segments, never hyphen-flattened.
+# Two segments always; the GitHub org IS the project's own brand, so the org
+# names the namespace and the tool names the package. The first segment must be
+# this repo's own GitHub owner: GITHUB_TOKEN only authorises packages owned by
+# the repository the workflow runs in.
+target:
+  registry: ghcr.io
+  repository: ocx-contrib/pulumi/pulumi
+
+source:
+  type: github_release
+  owner: pulumi
+  repo: pulumi
+  # Tags carry a "v" prefix (`v3.255.0`); the captured version does not.
+  # Checked against the 25 most recent releases: every one is bare `vX.Y.Z`,
+  # none prerelease, none draft. The anchored `$` keeps any future suffixed tag
+  # (`v3.256.0-rc1`, an SDK-only tag) out. Version ordering is by PARSED SEMVER,
+  # never by published_at.
+  tag_pattern: "^v(?P<version>\\d+\\.\\d+\\.\\d+)$"
+
+# ─── libc gate (Phase 3.5) — the evidence, not the conclusion ───────────────
+#
+# THIS PACKAGE IS NOT UNIVERSALLY STATIC, despite being 12/13 static Go. The
+# archive also ships `pulumi-watch`, a prebuilt from 2022-07-26 that is
+# DYNAMICALLY linked against glibc — and it lands on the same PATH directory as
+# everything else, so it is part of what this package requires of the host.
+#
+#   $ file pulumi-v3.255.0-linux-x64/pulumi/pulumi
+#   ELF 64-bit LSB executable, x86-64, ... statically linked, Go BuildID=...
+#   (same for pulumi-language-{bun,dotnet,go,java,nodejs,pcl,python,yaml}
+#    on BOTH arches and at BOTH ends of the range, 3.253.0 and 3.255.0)
+#
+#   $ file pulumi-v3.255.0-linux-x64/pulumi/pulumi-watch
+#   ELF 64-bit LSB pie executable, x86-64, ... dynamically linked,
+#   interpreter /lib64/ld-linux-x86-64.so.2
+#   $ readelf -l ... | grep INTERP
+#   [Requesting program interpreter: /lib64/ld-linux-x86-64.so.2]
+#   $ ldd ... -> libgcc_s.so.1 libpthread.so.0 libm.so.6 libdl.so.2 libc.so.6
+#   $ readelf -V ... | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1  -> GLIBC_2.29
+#
+#   $ file pulumi-v3.255.0-linux-arm64/pulumi/pulumi-watch
+#   ELF 64-bit LSB pie executable, ARM aarch64, ... dynamically linked,
+#   interpreter /lib/ld-linux-aarch64.so.1
+#
+# Decisive cross-check, on the real extracted archive:
+#   $ docker run --rm -v .../pulumi:/p:ro alpine:3.20 sh -c '/p/pulumi version'
+#   v3.255.0                                                        -> exit 0
+#   $ docker run --rm -v .../pulumi:/p:ro alpine:3.20 sh -c '/p/pulumi-watch --help'
+#   sh: /p/pulumi-watch: not found                                  -> exit 127
+#   $ docker run --rm -v .../pulumi:/p:ro ubuntu:24.04 bash -c '/p/pulumi-watch --help'
+#                                                                   -> exit 0
+#
+# `os.features` states what the artifact REQUIRES OF THE HOST. One declared
+# binary in this bundle cannot exec without a glibc loader, so both Linux keys
+# carry `+libc.glibc`. A bare key would be a false universality claim that
+# resolves this package onto musl hosts where `pulumi-watch` dies at exec with
+# a bare "not found". Container legs are therefore ubuntu:24.04 + fedora:40
+# (two glibc vintages, both well above the 2.29 floor) and deliberately NO
+# alpine — the renderer rejects an alpine leg under a `+libc.glibc` key, and it
+# would red for a reason the spec already states.
+#
+# Two keys (bare + glibc) are NOT applicable here: there is no second, static
+# build of pulumi-watch to publish under a bare key.
+#
+# ─── Scope + resolution (verified BOTH ways on EVERY in-range release) ──────
+#
+# The mirrored range is exactly v3.253.0, v3.254.0, v3.255.0. Each pattern
+# below was matched against each release's full asset list: EXACTLY ONE match,
+# every time. A pattern matching ZERO is silently skipped rather than an error,
+# which would yield a green run with a missing platform. Every asset name also
+# embeds the version of the tag that carries it (`pulumi-v3.253.0-*` under
+# `v3.253.0`), so no release re-ships a previous version's binaries.
+#
+# ⚠ ARCH TOKEN IS `x64`, NOT `amd64`. Anchored at both ends so `-linux-x64`
+# can never reach `-linux-arm64`, and so the PER-ASSET `.sig` sidecar that
+# accompanies every archive is excluded — upstream ships
+# `pulumi-v<V>-linux-x64.tar.gz.sig` next to the archive, plus whole-release
+# `B3SUMS`, `SHA512SUMS` and `pulumi-<V>-checksums.txt`, each with its own
+# `.sig`. Every one of those is kept out by the trailing `$`.
+#
+# ⚠ THE `sdk-*` ASSETS ARE DELIBERATELY EXCLUDED. Each release also ships
+# `sdk-nodejs-pulumi-pulumi-<V>.tgz`, `sdk-npm-pulumi-<V>.tgz` and
+# `sdk-python-pulumi-<V>-py3-none-any.whl`. Those are npm/PyPI LANGUAGE SDK
+# packages consumed by a Pulumi program, not CLI binaries — they are not
+# installable as a tool and no pattern here can reach them.
+#
+# ocx cannot express any architecture other than amd64/arm64, and upstream
+# ships no others for this tool, so nothing is dropped on that axis.
+assets:
+  "linux/amd64+libc.glibc":
+    - "^pulumi-v\\d+\\.\\d+\\.\\d+-linux-x64\\.tar\\.gz$"
+  "linux/arm64+libc.glibc":
+    - "^pulumi-v\\d+\\.\\d+\\.\\d+-linux-arm64\\.tar\\.gz$"
+  # ── Pass 2 (darwin) ───────────────────────────────────────────────────────
+  # Uncommented together with the matching `platforms:` entry, never alone: a
+  # declared platform with no resolvable asset does not red, it boots a real
+  # macos-14 runner and reports SUCCESS having tested nothing.
+  # "darwin/amd64":
+  #   - "^pulumi-v\\d+\\.\\d+\\.\\d+-darwin-x64\\.tar\\.gz$"
+  # "darwin/arm64":
+  #   - "^pulumi-v\\d+\\.\\d+\\.\\d+-darwin-arm64\\.tar\\.gz$"
+  # ── Pass 3 (windows) ──────────────────────────────────────────────────────
+  # "windows/amd64":
+  #   - "^pulumi-v\\d+\\.\\d+\\.\\d+-windows-x64\\.zip$"
+  # "windows/arm64":
+  #   - "^pulumi-v\\d+\\.\\d+\\.\\d+-windows-arm64\\.zip$"
+
+# ─── Archive layout — MEASURED, and it differs between unix and windows ─────
+#
+#   $ tar tzf pulumi-v3.255.0-linux-x64.tar.gz
+#   pulumi/pulumi   pulumi/pulumi-language-go   ... (13 entries, ALL files)
+#
+# A wrapper directory `pulumi/` with the executables DIRECTLY inside it and NO
+# `bin/` subdirectory. That is the "top dir, no bin/" case: strip_components
+# stays 0 so the wrapper survives, and metadata.json points PATH at
+# `${installPath}/pulumi`. Stripping it would hoist 13 executables to the
+# content root and force a bare `${installPath}` PATH, which the `bin_scan`
+# load-time gate rejects at exit 65. Identical shape on darwin/arm64,
+# darwin/x64, linux/arm64 and on the oldest in-range version (3.253.0).
+#
+#   $ unzip -Z1 pulumi-v3.255.0-windows-x64.zip
+#   pulumi/bin/pulumi.exe   pulumi/bin/pulumi-language-go.exe   ...
+#
+# The Windows zips DO nest a `bin/`, so they take strip_components 1 and their
+# own metadata file (PATH = ${installPath}/bin). Staged with pass 3.
+asset_type:
+  type: archive
+  strip_components: 0
+  # ── Pass 3 (windows) ──────────────────────────────────────────────────────
+  # platforms:
+  #   "windows/amd64":
+  #     type: archive
+  #     strip_components: 1
+  #   "windows/arm64":
+  #     type: archive
+  #     strip_components: 1
+
+# The binary set is PLATFORM-ASYMMETRIC — `windows/arm64` ships 12 entries, not
+# 13, because upstream has no `pulumi-watch.exe` for it:
+#
+#   $ unzip -Z1 pulumi-v3.255.0-windows-x64.zip   | wc -l   -> 13
+#   $ unzip -Z1 pulumi-v3.255.0-windows-arm64.zip | wc -l   -> 12   (no pulumi-watch.exe)
+#
+# That is exactly the case `verify` exists for: each platform's hand-written
+# list is checked against what the archive actually contains, so an upstream
+# rearrangement reds the run instead of drifting silently past a stale claim.
+bin_scan: verify
+
+metadata:
+  default: metadata.json
+  # ── Pass 3 (windows) ──────────────────────────────────────────────────────
+  # platforms:
+  #   "windows/amd64": metadata-windows.json
+  #   "windows/arm64": metadata-windows-arm64.json
+
+catalog:
+  logo: logo.svg
+
+versions:
+  # Per the run's package binding. Every release from here to 3.255.0 resolves
+  # all six upstream platforms; none is asset-less, and none re-ships an older
+  # version's binaries.
+  min: "3.253.0"
+  new_per_run: 5
+  poll_interval: "59 */6 * * *"
+
+# Assets are ~120 MB gzip archives that expand to ~360 MB of Go binaries, so
+# the bundle step is compression-bound rather than IO-bound. One bundle at a
+# time with every core on it beats two bundles fighting for the same cores and
+# doubling peak xz memory.
+concurrency:
+  max_downloads: 2
+  max_bundles: 1
+  max_pushes: 1
+  rate_limit_ms: 200
+  max_retries: 3
+  compression_threads: 0
+
+platforms:
+  "linux/amd64+libc.glibc":
+    runner: ubuntu-latest
+    # Two glibc vintages, no alpine — see the libc gate above. Neither leg
+    # needs `containers[].setup:`: the smoke drives pulumi's local file backend
+    # end to end and shells out to nothing, measured green in stock ubuntu:24.04
+    # (no git, no node, no python installed).
+    containers:
+      - { image: "ubuntu:24.04", shell: bash }
+      - { image: "fedora:40",    shell: bash }
+  "linux/arm64+libc.glibc":
+    # arm64 container legs run natively — no qemu — so the runner arch must
+    # match the platform or the renderer reds the leg up front.
+    runner: ubuntu-24.04-arm
+    containers:
+      - { image: "ubuntu:24.04", shell: bash }
+      - { image: "fedora:40",    shell: bash }
+  # ── Pass 2 (darwin) ───────────────────────────────────────────────────────
+  # "darwin/amd64":
+  #   # Intel slice tested on the arm64 macos-14 runner via Rosetta 2 —
+  #   # GitHub's native macos-13 Intel pool is exhausted and deadlocks push.
+  #   runner: macos-14
+  #   prefix: ["arch", "-x86_64"]
+  # "darwin/arm64":
+  #   runner: macos-14
+  #   shell: bash
+  # ── Pass 3 (windows) ──────────────────────────────────────────────────────
+  # "windows/amd64":
+  #   runner: windows-latest
+  #   shell: pwsh
+  # "windows/arm64":
+  #   runner: windows-11-arm
+  #   shell: pwsh
+  #
+  # No `containers:` on darwin or windows — those runners have no Linux
+  # container engine and the key is rejected at spec load.
+
+verify:
+  github_asset_digest: true
+
+skip_prereleases: true
+cascade: true
+
+# A cascade tag (`latest`, `3`, `3.255`) re-points on every re-publish; without
+# a build segment the new manifest would reuse the bare version tag and orphan
+# the prior digest for registry GC, breaking any `@sha256:` pin in a consumer's
+# ocx.lock. Upstream versions are bare semver with no `+build` segment, so the
+# fleet default applies with no exception.
+build_timestamp: date
+
+tests:
+  # `script:` resolves from the REPOSITORY ROOT — unlike `metadata.default` and
+  # `catalog.logo` above, which resolve against this spec's own directory.
+  - name: smoke
+    script: pulumi/tests/smoke.star
+
+annotations:
+  # From the Phase 1.5 license gate:
+  #   $ gh api repos/pulumi/pulumi/license --jq '.license.spdx_id'
+  #   Apache-2.0
+  org.opencontainers.image.licenses: "Apache-2.0"
+
+announce:
+  # Spelled out, not derived from target.repository — the logical name and the
+  # physical path are related by convention only.
+  package: pulumi/pulumi
+  fork: ocx-contrib/index
+
+notify:
+  discord:
+    webhook_secret: OCX_MIRROR_DISCORD_HOOK
+    user_id: "227748867204972545"  # pinged in-message on failures

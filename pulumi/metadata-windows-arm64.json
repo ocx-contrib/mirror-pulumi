@@ -1,0 +1,27 @@
+{
+  "type": "bundle",
+  "version": 1,
+  "binaries": [
+    "pulumi",
+    "pulumi-language-bun",
+    "pulumi-language-dotnet",
+    "pulumi-language-go",
+    "pulumi-language-java",
+    "pulumi-language-nodejs",
+    "pulumi-language-pcl",
+    "pulumi-language-python",
+    "pulumi-language-python-exec",
+    "pulumi-language-yaml",
+    "pulumi-resource-pulumi-nodejs",
+    "pulumi-resource-pulumi-python"
+  ],
+  "env": [
+    {
+      "key": "PATH",
+      "type": "path",
+      "required": true,
+      "value": "${installPath}/bin",
+      "visibility": "public"
+    }
+  ]
+}
