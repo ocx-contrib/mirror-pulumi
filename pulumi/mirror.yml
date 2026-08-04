@@ -198,7 +198,7 @@ versions:
   # version's binaries.
   min: "3.253.0"
   new_per_run: 5
-  poll_interval: "59 */6 * * *"
+  poll_interval: "10 5-23/6 * * *"
 
 # Assets are ~120 MB gzip archives that expand to ~360 MB of Go binaries, so
 # the bundle step is compression-bound rather than IO-bound. One bundle at a
