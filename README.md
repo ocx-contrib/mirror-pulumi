@@ -64,15 +64,33 @@ program still needs `node`, a Python program still needs `python`.
 
 ## Archive layout differs between unix and windows
 
-| Platform | Archive shape | `strip_components` | `PATH` |
-|---|---|---|---|
-| linux, darwin | `pulumi/<13 executables>` — wrapper dir, **no `bin/`** | `0` | `${installPath}/pulumi` |
-| windows | `pulumi/bin/<executables>` — wrapper dir **with** `bin/` | `1` | `${installPath}/bin` |
+| Platform | Archive shape | `PATH` |
+|---|---|---|
+| linux, darwin | `pulumi/<13 executables>` — wrapper dir, **no `bin/`** | `${installPath}/pulumi` |
+| windows | `pulumi/bin/<executables>` — wrapper dir **with** `bin/` | `${installPath}/pulumi/bin` |
 
-The unix case is the "top dir but no `bin/`" shape: the wrapper must survive,
-because stripping it hoists thirteen executables to the content root and forces
-a bare `${installPath}` PATH, which the `bin_scan` load-time gate rejects at
-exit 65.
+`strip_components` is **0 for every platform**, and the difference is expressed
+entirely in the metadata `PATH`. The unix case is the "top dir but no `bin/`"
+shape: the wrapper must survive, because stripping it hoists thirteen
+executables to the content root and forces a bare `${installPath}` PATH, which
+the `bin_scan` load-time gate rejects at exit 65.
+
+There is no per-platform strip. `asset_type.platforms.<key>.strip_components`
+is accepted by `package validate` and **silently ignored** by `package prepare`
+(ocx-mirror 0.5.2) — measured on the windows zip, where the override left the
+content at `pulumi/bin/…` while the same value at the top level correctly
+produced `bin/…`.
+
+### What `bin_scan: verify` does and does not catch
+
+It is **one-directional**: scanned ⊆ declared. Measured on 3.255.0 — dropping
+`pulumi-watch` from `metadata.json` reds with `scanned binary 'pulumi-watch' …
+is not declared in binaries`, while *adding* a name no file matches stays green
+and publishes the fabricated entry. A metadata `PATH` naming a directory the
+bundle does not contain therefore makes `verify` **vacuous**: the scan gets zero
+targets and everything passes. The load-time gate only rejects a *bare*
+`${installPath}`, not a wrong subdirectory — so the `PATH` values here are
+checked by `tar tJf` on a really prepared bundle, not by the setting.
 
 ## Platforms — this package requires glibc
 

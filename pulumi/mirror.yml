@@ -129,19 +129,28 @@ assets:
 #   $ unzip -Z1 pulumi-v3.255.0-windows-x64.zip
 #   pulumi/bin/pulumi.exe   pulumi/bin/pulumi-language-go.exe   ...
 #
-# The Windows zips DO nest a `bin/`, so they take strip_components 1 and their
-# own metadata file (PATH = ${installPath}/bin). Staged with pass 3.
+# The Windows zips DO nest a `bin/`, so their content root is `pulumi/bin/` and
+# they get their own metadata file (PATH = ${installPath}/pulumi/bin). Staged
+# with pass 3.
+#
+# ⚠ THERE IS NO PER-PLATFORM `strip_components` — `asset_type.platforms.<key>.
+# strip_components` is ACCEPTED BY `package validate` AND SILENTLY IGNORED BY
+# `package prepare` (ocx-mirror 0.5.2). Measured on the windows/amd64 zip,
+# whose entries are `pulumi/bin/*`:
+#
+#   asset_type.platforms."windows/amd64".strip_components: 1  -> bundle content
+#     `pulumi/bin/pulumi.exe`   (override ignored; same with and without a
+#                                nested `type: archive`)
+#   asset_type.strip_components: 1  (top level)               -> bundle content
+#     `bin/pulumi.exe`          (applied)
+#
+# So one strip value serves every platform. It stays 0, and the Windows layout
+# is expressed entirely in metadata-windows*.json's PATH. Do not reintroduce
+# the override: it would leave PATH pointing at a directory the bundle does not
+# contain, and `bin_scan: verify` does NOT catch that — see below.
 asset_type:
   type: archive
   strip_components: 0
-  # ── Pass 3 (windows) ──────────────────────────────────────────────────────
-  # platforms:
-  #   "windows/amd64":
-  #     type: archive
-  #     strip_components: 1
-  #   "windows/arm64":
-  #     type: archive
-  #     strip_components: 1
 
 # The binary set is PLATFORM-ASYMMETRIC — `windows/arm64` ships 12 entries, not
 # 13, because upstream has no `pulumi-watch.exe` for it:
@@ -152,6 +161,21 @@ asset_type:
 # That is exactly the case `verify` exists for: each platform's hand-written
 # list is checked against what the archive actually contains, so an upstream
 # rearrangement reds the run instead of drifting silently past a stale claim.
+#
+# ⚠ KNOW WHAT IT DOES AND DOES NOT CATCH. `verify` is ONE-DIRECTIONAL: it
+# asserts scanned ⊆ declared, never the reverse. Measured on 3.255.0:
+#
+#   drop `pulumi-watch` from metadata.json  -> RED, and it names the file:
+#     "scanned binary 'pulumi-watch' at '…/content/pulumi/pulumi-watch' is not
+#      declared in binaries"
+#   ADD a name no file matches              -> GREEN, and the fabricated name
+#                                              is published in the claim
+#
+# It follows that a metadata PATH pointing at a directory the bundle does not
+# contain makes `verify` VACUOUS — the scan gets zero targets and every
+# declared name passes. The load-time gate only rejects a BARE `${installPath}`,
+# not a wrong subdirectory. So the PATH values in metadata*.json are checked by
+# `tar tJf` on a real prepared bundle, not by this setting.
 bin_scan: verify
 
 metadata:

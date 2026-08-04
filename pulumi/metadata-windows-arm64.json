@@ -20,7 +20,7 @@
       "key": "PATH",
       "type": "path",
       "required": true,
-      "value": "${installPath}/bin",
+      "value": "${installPath}/pulumi/bin",
       "visibility": "public"
     }
   ]
