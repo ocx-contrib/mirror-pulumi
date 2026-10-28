@@ -109,8 +109,16 @@ check_language_host()
 # actually exec it; on a musl host this call is the one that dies at load time.
 # Upstream ships no `pulumi-watch.exe` for windows/arm64 (12 entries in that
 # zip, 13 everywhere else), so that one platform is skipped by construction.
+# Upstream DROPPED pulumi-watch from the archives in v3.273.0 (every platform),
+# so the check runs only when the binary is on PATH. A missing binary is an
+# uncatchable spawn error, hence the PATH probe through the platform's lookup.
+def has_watch():
+    if ocx.target_platform.os == ocx.os.Windows:
+        return ocx.run("where", WATCH).exit_code == 0
+    return ocx.run("sh", "-c", "command -v " + WATCH).exit_code == 0
+
 def check_watch():
-    if ocx.target_platform.os == ocx.os.Windows and ocx.target_platform.arch == ocx.arch.Arm64:
+    if not has_watch():
         return
     r_ok = ocx.run(WATCH, "--help", env = ENV)
     expect.eq(r_ok.exit_code, 0)
