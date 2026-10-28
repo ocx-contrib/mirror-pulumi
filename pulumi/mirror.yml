@@ -103,6 +103,13 @@ assets:
   # Uncommented together with the matching `platforms:` entry, never alone: a
   # declared platform with no resolvable asset does not red, it boots a real
   # macos-14 runner and reports SUCCESS having tested nothing.
+  # v3.274.0+ (pulumi-watch gone since 3.273.0): upstream dropped the dynamically linked pulumi-watch, leaving only
+  # static Go binaries, so these keys are BARE (same archives as the glibc keys;
+  # `platforms.<key>.min_version`/`max_version` split the version ranges).
+  "linux/amd64":
+    - "^pulumi-v\\d+\\.\\d+\\.\\d+-linux-x64\\.tar\\.gz$"
+  "linux/arm64":
+    - "^pulumi-v\\d+\\.\\d+\\.\\d+-linux-arm64\\.tar\\.gz$"
   "darwin/amd64":
     - "^pulumi-v\\d+\\.\\d+\\.\\d+-darwin-x64\\.tar\\.gz$"
   "darwin/arm64":
@@ -215,6 +222,7 @@ concurrency:
 platforms:
   "linux/amd64+libc.glibc":
     runner: ubuntu-latest
+    max_version: "3.274.0"   # exclusive: 3.273.0 already published glibc-keyed (its smoke legs ran), so the split starts at 3.274.0
     # Two glibc vintages, no alpine — see the libc gate above. Neither leg
     # needs `containers[].setup:`: the smoke drives pulumi's local file backend
     # end to end and shells out to nothing, measured green in stock ubuntu:24.04
@@ -226,8 +234,23 @@ platforms:
     # arm64 container legs run natively — no qemu — so the runner arch must
     # match the platform or the renderer reds the leg up front.
     runner: ubuntu-24.04-arm
+    max_version: "3.274.0"   # exclusive: 3.273.0 already published glibc-keyed (its smoke legs ran), so the split starts at 3.274.0
     containers:
       - { image: "ubuntu:24.04", shell: bash }
+      - { image: "fedora:40",    shell: bash }
+  "linux/amd64":
+    runner: ubuntu-latest
+    min_version: "3.274.0"   # pulumi-watch dropped upstream in 3.273.0: all-static, no libc requirement
+    containers:
+      - { image: "ubuntu:24.04", shell: bash }
+      - { image: "alpine:3.20",  shell: sh }
+      - { image: "fedora:40",    shell: bash }
+  "linux/arm64":
+    runner: ubuntu-24.04-arm
+    min_version: "3.274.0"   # pulumi-watch dropped upstream in 3.273.0: all-static, no libc requirement
+    containers:
+      - { image: "ubuntu:24.04", shell: bash }
+      - { image: "alpine:3.20",  shell: sh }
       - { image: "fedora:40",    shell: bash }
   # ── Pass 2 (darwin) — LIVE ────────────────────────────────────────────────
   # Same archive shape as Linux (`pulumi/` wrapper, 13 files, no `bin/`), so
