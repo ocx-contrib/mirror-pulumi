@@ -102,7 +102,7 @@ assets:
   # ── Pass 2 (darwin) — LIVE ────────────────────────────────────────────────
   # Uncommented together with the matching `platforms:` entry, never alone: a
   # declared platform with no resolvable asset does not red, it boots a real
-  # macos-14 runner and reports SUCCESS having tested nothing.
+  # macos-15 runner and reports SUCCESS having tested nothing.
   # v3.274.0+ (pulumi-watch gone since 3.273.0): upstream dropped the dynamically linked pulumi-watch, leaving only
   # static Go binaries, so these keys are BARE (same archives as the glibc keys;
   # `platforms.<key>.min_version`/`max_version` split the version ranges).
@@ -257,12 +257,12 @@ platforms:
   # metadata.json serves both. macOS has one libc family — no `+libc.*` suffix,
   # and `containers:` is rejected at spec load on a non-Linux platform.
   "darwin/amd64":
-    # Intel slice tested on the arm64 macos-14 runner via Rosetta 2 —
+    # Intel slice tested on the arm64 macos-15 runner via Rosetta 2 —
     # GitHub's native macos-13 Intel pool is exhausted and deadlocks push.
-    runner: macos-14
+    runner: macos-15
     prefix: ["arch", "-x86_64"]
   "darwin/arm64":
-    runner: macos-14
+    runner: macos-15
     shell: bash
   # ── Pass 3 (windows) — LIVE ───────────────────────────────────────────────
   "windows/amd64":
